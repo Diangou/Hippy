@@ -1,14 +1,6 @@
-import { spots, statusConfig } from '../data/spots'
+import { statusConfig } from '../data/spots'
 
 export function buildMainMapHtml() {
-  const spotsData = spots.map((s) => ({
-    id: s.id,
-    name: s.name,
-    color: statusConfig[s.status].color,
-    statusLabel: statusConfig[s.status].label,
-    polygon: s.polygon,
-  }))
-
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -16,108 +8,116 @@ export function buildMainMapHtml() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; background: #e8e0d8; }
+    * { box-sizing: border-box; }
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
 
     /* Popup */
     .leaflet-popup-content-wrapper {
-      border-radius: 14px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
-      padding: 0;
-      overflow: hidden;
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12); padding: 0; overflow: hidden;
     }
     .leaflet-popup-content { margin: 0; }
-    .leaflet-popup-tip-container { display: none; }
+    .leaflet-popup-tip { background: #fff; }
 
-    .popup-inner {
-      padding: 14px 16px 12px;
-      font-family: -apple-system, sans-serif;
-      text-align: center;
-      min-width: 160px;
+    /* Tip card */
+    #tip {
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #fff; border-radius: 14px; z-index: 1000;
+      padding: 12px 20px; font-family: -apple-system, system-ui, sans-serif;
+      font-size: 13px; font-weight: 600; color: #4A6A4A;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+      border: 1px solid #F0F4F1;
+      display: flex; align-items: center; gap: 8px;
+      white-space: nowrap; pointer-events: none;
     }
-    .popup-name {
-      font-size: 14px; font-weight: 700; color: #111; margin-bottom: 8px;
+    #tip-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #00C853;
+      animation: blink 1.4s ease-in-out infinite;
     }
-    .popup-badge {
-      display: inline-block; padding: 3px 12px; border-radius: 20px;
-      font-size: 12px; font-weight: 700; color: white;
-    }
-    .popup-btn {
-      display: block; width: 100%; margin-top: 10px; padding: 8px 0;
-      background: #2E7D32; color: white; border: none; border-radius: 8px;
-      font-size: 13px; font-weight: 700; cursor: pointer;
+    @keyframes blink {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.2; }
     }
 
-    /* Label zone */
-    .zone-label {
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      font-size: 11px;
-      font-weight: 800;
-      color: white;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.55), 0 0 8px rgba(0,0,0,0.3);
-      white-space: nowrap;
-      letter-spacing: 0.3px;
-      pointer-events: none;
+    /* Pin marker */
+    .pin-wrap { position: relative; width: 32px; height: 40px; }
+    .pin-head {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.25);
     }
-    .zone-label::before { display: none !important; }
+    .pin-tail {
+      position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+    }
+    .pin-ring {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid;
+      animation: ping 2s cubic-bezier(0,0,0.2,1) infinite;
+    }
+    @keyframes ping {
+      0%   { transform: translateX(-50%) scale(0.8); opacity: 0.9; }
+      75%  { transform: translateX(-50%) scale(2.2); opacity: 0; }
+      100% { transform: translateX(-50%) scale(2.2); opacity: 0; }
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="tip"><div id="tip-dot"></div>Touchez la carte pour analyser un spot</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     var map = L.map('map', { zoomControl: true }).setView([46.8, 2.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap', maxZoom: 18
+      attribution: '© OpenStreetMap', maxZoom: 19,
     }).addTo(map);
 
-    var spots = ${JSON.stringify(spotsData)};
+    var marker = null;
+    var COLOR = '#00C853';
 
-    spots.forEach(function(spot) {
-      var poly = L.polygon(spot.polygon, {
-        color: spot.color,
-        weight: 2.5,
-        opacity: 0.95,
-        fillColor: spot.color,
-        fillOpacity: 0.30,
-        lineJoin: 'round',
-      }).addTo(map);
-
-      /* Label centré dans la zone */
-      poly.bindTooltip(spot.name, {
-        permanent: true,
-        direction: 'center',
-        className: 'zone-label',
+    function makeIcon(color) {
+      return L.divIcon({
+        className: '',
+        html: '<div class="pin-wrap">'
+          + '<div class="pin-ring" style="border-color:' + color + '"></div>'
+          + '<div class="pin-head" style="background:' + color + '"></div>'
+          + '<div class="pin-tail" style="border-top:14px solid ' + color + '"></div>'
+          + '</div>',
+        iconSize:   [32, 40],
+        iconAnchor: [16, 40],
+        popupAnchor:[0, -44],
       });
-
-      /* Popup au clic */
-      poly.bindPopup(
-        '<div class="popup-inner">'
-        + '<div class="popup-name">' + spot.name + '</div>'
-        + '<span class="popup-badge" style="background:' + spot.color + '">' + spot.statusLabel + '</span>'
-        + '<button class="popup-btn" onclick="sendSpot(' + spot.id + ')">Voir le détail →</button>'
-        + '</div>',
-        { closeButton: false, minWidth: 160 }
-      );
-
-      /* Survol — légère accentuation */
-      poly.on('mouseover', function() {
-        this.setStyle({ fillOpacity: 0.48, weight: 3 });
-      });
-      poly.on('mouseout', function() {
-        this.setStyle({ fillOpacity: 0.30, weight: 2.5 });
-      });
-    });
-
-    function sendSpot(id) {
-      var msg = JSON.stringify({ type: 'navigate', id: id });
-      if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(msg);
-      } else {
-        window.parent.postMessage(msg, '*');
-      }
     }
+
+    function placeMarker(latlng) {
+      document.getElementById('tip').style.display = 'none';
+      if (!marker) {
+        marker = L.marker(latlng, { icon: makeIcon(COLOR), draggable: true }).addTo(map);
+        marker.on('dragend', function() {
+          send(marker.getLatLng());
+        });
+      } else {
+        marker.setLatLng(latlng);
+      }
+      send(latlng);
+    }
+
+    function send(latlng) {
+      var msg = JSON.stringify({ type: 'tap', lat: latlng.lat, lng: latlng.lng });
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(msg);
+      else window.parent.postMessage(msg, '*');
+    }
+
+    map.on('click', function(e) { placeMarker(e.latlng); });
+
+    /* Called from React Native to update pin color after analysis */
+    window.setMarkerColor = function(color) {
+      COLOR = color;
+      if (marker) marker.setIcon(makeIcon(color));
+    };
   </script>
 </body>
 </html>`
@@ -125,8 +125,6 @@ export function buildMainMapHtml() {
 
 export function buildSpotMapHtml(spot) {
   const color = statusConfig[spot.status].color
-  const polygonJSON = JSON.stringify(spot.polygon)
-
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -135,27 +133,48 @@ export function buildSpotMapHtml(spot) {
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
+    .pin-wrap { position: relative; width: 32px; height: 40px; }
+    .pin-head {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    }
+    .pin-tail {
+      position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 7px solid transparent; border-right: 7px solid transparent;
+    }
+    .pin-ring {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 22px; height: 22px; border-radius: 50%; border: 2px solid;
+      animation: ping 2s cubic-bezier(0,0,0.2,1) infinite;
+    }
+    @keyframes ping {
+      0%   { transform: translateX(-50%) scale(0.8); opacity: 0.9; }
+      75%  { transform: translateX(-50%) scale(2.2); opacity: 0; }
+      100% { transform: translateX(-50%) scale(2.2); opacity: 0; }
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    var coords = ${polygonJSON};
-    var map = L.map('map', { zoomControl: false, dragging: false, scrollWheelZoom: false, attributionControl: false });
+    var map = L.map('map', {
+      zoomControl: false, dragging: false,
+      scrollWheelZoom: false, attributionControl: false,
+    }).setView([${spot.lat}, ${spot.lng}], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    var poly = L.polygon(coords, {
-      color: '${color}',
-      weight: 2.5,
-      opacity: 0.95,
-      fillColor: '${color}',
-      fillOpacity: 0.28,
-      lineJoin: 'round',
-    }).addTo(map);
-
-    /* Ajuste le zoom pour afficher toute la zone */
-    map.fitBounds(poly.getBounds(), { padding: [20, 20] });
+    var icon = L.divIcon({
+      className: '',
+      html: '<div class="pin-wrap">'
+        + '<div class="pin-ring" style="border-color:${color}"></div>'
+        + '<div class="pin-head" style="background:${color}"></div>'
+        + '<div class="pin-tail" style="border-top:14px solid ${color}"></div>'
+        + '</div>',
+      iconSize: [32, 40], iconAnchor: [16, 40],
+    });
+    L.marker([${spot.lat}, ${spot.lng}], { icon }).addTo(map);
   </script>
 </body>
 </html>`

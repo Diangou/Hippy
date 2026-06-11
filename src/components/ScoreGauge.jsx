@@ -1,15 +1,16 @@
 import Svg, { Circle, Text as SvgText } from 'react-native-svg'
 
-const SIZE = 140
+const SIZE = 180
 const CX = SIZE / 2
 const CY = SIZE / 2
-const RADIUS = 55
+const RADIUS = 68
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+const STROKE = 10
 
 function gaugeColor(score) {
-  if (score >= 75) return '#2E7D32'
-  if (score >= 50) return '#E65100'
-  return '#C62828'
+  if (score >= 75) return '#00C853'
+  if (score >= 50) return '#FF8F00'
+  return '#F50057'
 }
 
 export default function ScoreGauge({ score }) {
@@ -18,13 +19,11 @@ export default function ScoreGauge({ score }) {
 
   return (
     <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
-      {/* Track */}
-      <Circle cx={CX} cy={CY} r={RADIUS} stroke="#E5E7EB" strokeWidth={12} fill="none" />
-      {/* Progress */}
+      <Circle cx={CX} cy={CY} r={RADIUS} stroke="#F0F4F1" strokeWidth={STROKE} fill="none" />
       <Circle
         cx={CX} cy={CY} r={RADIUS}
         stroke={color}
-        strokeWidth={12}
+        strokeWidth={STROKE}
         fill="none"
         strokeDasharray={CIRCUMFERENCE}
         strokeDashoffset={offset}
@@ -32,11 +31,10 @@ export default function ScoreGauge({ score }) {
         rotation="-90"
         origin={`${CX}, ${CY}`}
       />
-      {/* Score text */}
-      <SvgText x={CX} y={CY - 6} textAnchor="middle" fontSize={30} fontWeight="bold" fill={color}>
+      <SvgText x={CX} y={CY + 4} textAnchor="middle" fontSize={48} fontWeight="900" fill={color}>
         {score}
       </SvgText>
-      <SvgText x={CX} y={CY + 16} textAnchor="middle" fontSize={13} fill="#9CA3AF">
+      <SvgText x={CX} y={CY + 24} textAnchor="middle" fontSize={11} fontWeight="700" fill="#BBCCC0" letterSpacing={3}>
         / 100
       </SvgText>
     </Svg>
