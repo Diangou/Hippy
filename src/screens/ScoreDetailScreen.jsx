@@ -11,9 +11,10 @@ function barColor(ratio) {
 }
 
 function ScoreRow({ component }) {
-  const ratio = component.points / component.max
-  const color = barColor(ratio)
-  const pct = Math.round(ratio * 100)
+  const unavailable = component.points === null
+  const ratio = unavailable ? 0 : component.points / component.max
+  const color = unavailable ? '#BBCCBB' : barColor(ratio)
+  const pct   = unavailable ? 0 : Math.round(ratio * 100)
 
   return (
     <View style={styles.rowWrap}>
@@ -23,11 +24,14 @@ function ScoreRow({ component }) {
           <Text style={styles.rowWeight}>{component.weight}% du score</Text>
         </View>
         <Text style={[styles.rowScore, { color }]}>
-          {component.points}<Text style={styles.rowMax}>/{component.max}</Text>
+          {unavailable ? '–' : component.points}
+          <Text style={styles.rowMax}>/{component.max}</Text>
         </Text>
       </View>
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
+        {!unavailable && (
+          <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
+        )}
       </View>
     </View>
   )
@@ -85,6 +89,23 @@ export default function ScoreDetailScreen() {
           {spot.score.components.map((c) => (
             <ScoreRow key={c.label} component={c} />
           ))}
+        </View>
+
+        {/* Score legend */}
+        <View style={styles.legend}>
+          <Text style={styles.legendTitle}>SEUILS DE SCORE</Text>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: '#00C853' }]} />
+            <Text style={styles.legendText}><Text style={styles.legendBold}>≥ 65</Text> — Autorisé</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: '#FF8F00' }]} />
+            <Text style={styles.legendText}><Text style={styles.legendBold}>40 – 64</Text> — Conditionnel</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: '#F50057' }]} />
+            <Text style={styles.legendText}><Text style={styles.legendBold}>{"< 40"}</Text> — Interdit</Text>
+          </View>
         </View>
 
         {/* Disclaimer */}
@@ -152,6 +173,19 @@ const styles = StyleSheet.create({
   rowMax: { fontSize: 13, fontWeight: '600', color: '#BBCCBB' },
   track: { height: 6, backgroundColor: '#F0F4F1', borderRadius: 3, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
+
+  legend: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16, marginTop: 12,
+    borderRadius: 20, padding: 20, gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
+  },
+  legendTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: '#BBCCBB', marginBottom: 2 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 13, color: '#4A6A4A' },
+  legendBold: { fontWeight: '800' },
 
   disclaimer: {
     marginHorizontal: 16, marginTop: 12,

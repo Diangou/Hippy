@@ -62,11 +62,15 @@ export default function SpotDetailScreen() {
         {/* Weather */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>MÉTÉO CE SOIR</Text>
-          <View style={styles.weatherGrid}>
-            <WeatherCard icon="🌡" label="Température" value={`${spot.weather.nightTemp}°C`} />
-            <WeatherCard icon="🌧" label="Précipitations" value={`${spot.weather.precipitation} mm`} />
-            <WeatherCard icon="✦" label="Confort" value={spot.weather.comfort} small />
-          </View>
+          {spot.weather ? (
+            <View style={styles.weatherGrid}>
+              <WeatherCard icon="🌡" label="Température" value={`${spot.weather.nightTemp}°C`} />
+              <WeatherCard icon="🌧" label="Précipitations" value={`${spot.weather.precipitation} mm`} />
+              <WeatherCard icon="✦" label="Confort" value={spot.weather.comfort} small />
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>Météo indisponible — Open-Meteo inaccessible depuis ce réseau.</Text>
+          )}
         </View>
 
         <View style={styles.divider} />

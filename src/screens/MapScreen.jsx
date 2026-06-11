@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import {
   View, Text, StyleSheet, SafeAreaView, Platform,
   ActivityIndicator,
@@ -9,16 +9,22 @@ import { buildMainMapHtml } from '../utils/mapHtml'
 import { fetchWeather } from '../services/weatherService'
 import { fetchProtection } from '../services/protectedAreasService'
 import { fetchNearbyBivouacs } from '../services/refugesService'
+import { fetchLocation } from '../services/locationService'
 import { computeScore } from '../utils/scoreUtils'
 import LeafletView from '../components/LeafletView'
 
 const MAP_HTML = buildMainMapHtml()
 
+const ERROR_MESSAGES = {
+  HORS_FRANCE: 'Ce point est hors de France métropolitaine.',
+  HORS_TERRE:  'Ce point semble être en mer ou hors de France.',
+  EN_MER:      'Ce point est en mer — posez le marqueur sur la terre.',
+}
+
 export default function MapScreen() {
   const navigation = useNavigation()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const webviewRef = useRef(null)
+  const [error, setError]     = useState(null)
 
   async function handleMessage(event) {
     try {
@@ -29,19 +35,36 @@ export default function MapScreen() {
       setLoading(true)
       setError(null)
 
+      // Validation géographique d'abord (Nominatim)
+      let location
+      try {
+        location = await fetchLocation(lat, lng)
+      } catch (e) {
+        setLoading(false)
+        setError(ERROR_MESSAGES[e.message] ?? 'Impossible d\'analyser ce point.')
+        return
+      }
+
+      // Les 3 APIs en parallèle
       const [weather, protection, bivouacs] = await Promise.all([
-        fetchWeather(lat, lng),
+        fetchWeather(lat, lng).catch(() => null),
         fetchProtection(lat, lng),
-        fetchNearbyBivouacs(lat, lng),
+        fetchNearbyBivouacs(lat, lng).catch(() => []),
       ])
 
-      const { status, zoneName } = protection
-      const score = computeScore(status, weather)
+      if (protection.isWater) {
+        setLoading(false)
+        setError('Ce point est sur l\'eau — placez le marqueur sur la terre ferme.')
+        return
+      }
+
+      const score = computeScore(protection.status, weather)
+      const { status } = score  // badge dérivé du score total (seuils : ≥65 autorisé, ≥40 conditionnel)
 
       const spot = {
         id: `${lat.toFixed(5)}_${lng.toFixed(5)}`,
-        name: zoneName ?? `Bivouac ${lat.toFixed(3)}° N, ${Math.abs(lng).toFixed(3)}° ${lng >= 0 ? 'E' : 'O'}`,
-        location: zoneName ? `Zone protégée — ${zoneName}` : 'France',
+        name: protection.zoneName ?? `Bivouac — ${location.split(',')[0]}`,
+        location: protection.zoneName ? `Zone protégée · ${location}` : location,
         lat,
         lng,
         status,
@@ -52,7 +75,7 @@ export default function MapScreen() {
 
       setLoading(false)
       navigation.navigate('SpotDetail', { spot })
-    } catch (e) {
+    } catch (_) {
       setLoading(false)
       setError('Analyse impossible. Vérifiez votre connexion.')
     }
@@ -70,11 +93,7 @@ export default function MapScreen() {
         </View>
       </SafeAreaView>
 
-      <LeafletView
-        ref={webviewRef}
-        html={MAP_HTML}
-        onMessage={handleMessage}
-      />
+      <LeafletView html={MAP_HTML} onMessage={handleMessage} />
 
       {/* Loading overlay */}
       {loading && (
@@ -129,27 +148,28 @@ const styles = StyleSheet.create({
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.75)',
     justifyContent: 'center', alignItems: 'center', zIndex: 20,
   },
   overlayCard: {
     backgroundColor: '#fff', borderRadius: 20,
     paddingHorizontal: 32, paddingVertical: 28,
-    alignItems: 'center', gap: 12,
+    alignItems: 'center', gap: 12, minWidth: 240,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.10, shadowRadius: 24, elevation: 10,
     borderWidth: 1, borderColor: '#F0F4F1',
-    minWidth: 240,
   },
   overlayTitle: { fontSize: 16, fontWeight: '800', color: '#0D1F0D', marginTop: 4 },
-  overlayLine: { fontSize: 13, color: '#6B8A6B', fontWeight: '500' },
+  overlayLine:  { fontSize: 13, color: '#6B8A6B', fontWeight: '500' },
 
   toast: {
-    position: 'absolute', bottom: 90, left: 20, right: 20, zIndex: 30,
-    backgroundColor: '#FF3B30', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 12,
+    position: 'absolute', bottom: 100, left: 20, right: 20, zIndex: 30,
+    backgroundColor: '#1A1A1A', borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
   },
-  toastText: { color: '#fff', fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  toastText: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
   legend: {
     position: 'absolute', bottom: 24, left: 16,

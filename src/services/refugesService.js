@@ -1,3 +1,5 @@
+import { Platform } from 'react-native'
+
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371
   const dLat = ((lat2 - lat1) * Math.PI) / 180
@@ -11,6 +13,9 @@ function haversine(lat1, lng1, lat2, lng2) {
 }
 
 export async function fetchNearbyBivouacs(lat, lng) {
+  // refuges.info bloque les requêtes cross-origin depuis un navigateur
+  if (Platform.OS === 'web') return []
+
   const delta = 0.3 // ~30 km
   const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`
   const url = `https://www.refuges.info/api/nb_points/bbox?nb_points=5&bbox=${bbox}&type_points=7`
